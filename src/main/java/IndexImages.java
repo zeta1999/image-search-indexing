@@ -1,59 +1,29 @@
-import hadoopImageParser.ImageSearchResult;
-import hadoopImageParser.ImageParse;
-
-import java.io.IOException;
-
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
-import java.io.IOException;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Mapper;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collection;
-import java.util.Iterator;
-import java.io.OutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ByteArrayInputStream;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.PrintWriter;
-import java.net.URL;
-import java.net.URLDecoder;
-
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
- 
+import org.archive.io.ArchiveRecord;
 import org.archive.io.arc.ARCReader;
 import org.archive.io.arc.ARCReaderFactory;
 import org.archive.io.arc.ARCRecord;
-import org.archive.io.arc.ARCRecordMetaData;
-import org.archive.io.ArchiveRecord;
-
+import org.json.simple.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-
-import org.apache.commons.lang3.StringUtils;
+import java.io.*;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.util.Iterator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 
@@ -71,7 +41,7 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
 
 	public static String guessEncoding(byte[] bytes) {
 	    String DEFAULT_ENCODING = "UTF-8";
-	    org.mozilla.universalchardet.UniversalDetector detector =
+        org.mozilla.universalchardet.UniversalDetector detector =
 	        new org.mozilla.universalchardet.UniversalDetector(null);
 	    detector.handleData(bytes, 0, bytes.length);
 	    detector.dataEnd();
@@ -173,7 +143,7 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
                 obj.put( "imgSrc", imgSrc); /*The URL of the Image*/
                 obj.put( "imgSrcTokens", imgSrcTokens);
                 obj.put( "imgSrcURLDigest", ImageParse.hash256(imgSrc)); /*Digest Sha-256 of the URL of the Image*/
-                
+
                 if(el.attr("title").length() > 9999){
                     obj.put( "imgTitle", el.attr("title").substring(0,10000) );
                 }
@@ -200,6 +170,8 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
                 }
                 obj.put("pageURLTokens", pageURLTokens);                
                 obj.put( "collection" , collectionName );
+                obj.put("nsfw", imgResult.getNsfw());
+
                 context.write( new Text (obj.toJSONString()),null);
             }
         }catch (Exception e){

@@ -1,0 +1,4 @@
+http://p68.arquivo.pt:8080/browser/files/Roteiro/arcs/AWP-Roteiro-20090510220155-00000.arc.gz
+http://p68.arquivo.pt:8080/browser/files/Roteiro/arcs/AWP-Roteiro-20090510220346-00001.arc.gz
+http://p68.arquivo.pt:8080/browser/files/Roteiro/arcs/AWP-Roteiro-20090510220409-00002.arc.gz
+http://p68.arquivo.pt:8080/browser/files/Roteiro/arcs/AWP-Roteiro-20090510220431-00003.arc.gz
