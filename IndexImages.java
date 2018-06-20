@@ -6,17 +6,36 @@ import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Job;
+/*import org.apache.hadoop.mapreduce.Job;*/
+/*import org.apache.hadoop.mapred.JobConf;*/
+
+import org.apache.hadoop.mapred.jobcontrol.Job;
+
+/*import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;*/
+import org.apache.hadoop.mapred.FileInputFormat;
+import org.apache.hadoop.mapred.TextInputFormat;
+import org.apache.hadoop.mapred.MapFileOutputFormat;
+import org.apache.hadoop.mapred.TextOutputFormat;
+import org.apache.hadoop.io.Writable; 
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.mapred.OutputCollector;
+import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;
-import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import java.io.DataOutputStream;
+import java.util.ArrayList;
+import org.apache.hadoop.mapred.SequenceFileInputFormat;
+import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.io.NullWritable;
+/*import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;*/
+/*import org.apache.hadoop.mapreduce.lib.input.NLineInputFormat;*/
+/*import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;*/
+/*import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;*/
 import java.io.IOException;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapreduce.Mapper;
+
+import org.apache.hadoop.mapred.Mapper;
+/*import org.apache.hadoop.mapreduce.Mapper;*/
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -58,17 +77,24 @@ import org.apache.commons.lang3.StringUtils;
 
 
 
-class Map extends Mapper<LongWritable, Text, Text, Text> {
+class Map implements Mapper {
 
     public static String collectionName;
 
-    @Override
+    /*@Override
     public void setup(Context context) {
         Configuration config = context.getConfiguration();
         collectionName = config.get("collection");
         System.out.println("collection: " + collectionName);
-    }
+    }*/
 
+    public void configure(JobConf conf){
+
+    }
+    public void close()
+           throws IOException{
+
+    }
 	public static String guessEncoding(byte[] bytes) {
 	    String DEFAULT_ENCODING = "UTF-8";
 	    org.mozilla.universalchardet.UniversalDetector detector =
@@ -94,8 +120,18 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
         return result;
     }
 
+    public JSONArray stringToJSONArray(String str){
+        String[] tokens = str.split("\\s+");
+        JSONArray array = new JSONArray();
+        int i=0;
+        for( String current:tokens){
+            array.add(current);
+            i++;
+        }
+        return array;
+    }
 
-    public  void parseImagesFromHtmlRecord(ARCRecord record, Context context) throws IOException{
+    public  void parseImagesFromHtmlRecord(ARCRecord record, Writable value, OutputCollector outputCollector) throws IOException{
         OutputStream output = new ByteArrayOutputStream()
         {
             private StringBuilder string = new StringBuilder();
@@ -138,6 +174,7 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
             for(Element el: imgs){
                 JSONObject obj = new JSONObject();      
                 String imgSrc = el.attr("src");
+                OutputStream outputStream = new ByteArrayOutputStream();
 
                 if(!imgSrc.startsWith("http") && !imgSrc.startsWith("data:image")){
                     /*Relative Path lets reconstruct full path*/
@@ -171,20 +208,20 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
                 obj.put( "imgWidth", imgResult.getWidth( ) ); 
                 obj.put( "imgHeight", imgResult.getHeight( ) ); 
                 obj.put( "imgSrc", imgSrc); /*The URL of the Image*/
-                obj.put( "imgSrcTokens", imgSrcTokens);
+                obj.put( "imgSrcTokens", stringToJSONArray(imgSrcTokens));
                 obj.put( "imgSrcURLDigest", ImageParse.hash256(imgSrc)); /*Digest Sha-256 of the URL of the Image*/
                 
                 if(el.attr("title").length() > 9999){
-                    obj.put( "imgTitle", el.attr("title").substring(0,10000) );
+                    obj.put( "imgTitle", stringToJSONArray(el.attr("title").substring(0,10000)) );
                 }
                 else{
-                    obj.put( "imgTitle", el.attr("title") );
+                    obj.put( "imgTitle", stringToJSONArray(el.attr("title")) );
                 }
                 if(el.attr("alt").length() > 9999){
-                    obj.put( "imgAlt", el.attr("alt").substring(0,10000) );
+                    obj.put( "imgAlt", stringToJSONArray(el.attr("alt").substring(0,10000)) );
                 }
                 else{
-                    obj.put( "imgAlt", el.attr("alt"));
+                    obj.put( "imgAlt", stringToJSONArray(el.attr("alt")));
                 }
                 obj.put( "imgMimeType" ,  imgResult.getMime( ) );
                 obj.put( "imgSrcBase64" , imgResult.getThumbnail( ) );
@@ -196,11 +233,18 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
                 obj.put( "pageHost", pageHost);
                 obj.put( "pageProtocol", pageProtocol);
                 if(! pageTitle.isEmpty()){
-                    obj.put( "pageTitle" , pageTitle); /*The URL of the Archived page*/
-                }
-                obj.put("pageURLTokens", pageURLTokens);                
+                    obj.put( "pageTitle" , stringToJSONArray(pageTitle)); /*The URL of the Archived page*/
+                }                
+                obj.put("pageURLTokens", stringToJSONArray(pageURLTokens));                
                 obj.put( "collection" , collectionName );
-                context.write( new Text (obj.toJSONString()),null);
+
+                try{
+                    outputCollector.collect(new Text(""), new Text(obj.toJSONString()));
+
+                } catch (IOException e){
+                    e.printStackTrace();
+                }
+                
             }
         }catch (Exception e){
             System.err.println("Something failed JSOUP parsing");
@@ -209,23 +253,28 @@ class Map extends Mapper<LongWritable, Text, Text, Text> {
       
     }
 
+ 
+ /*map(LongWritable key, Text value, Context context)*/
 
-
-	public void map(LongWritable key, Text value, Context context)
-			throws IOException, InterruptedException {
+	public void map(WritableComparable key,
+                    Writable value,
+                    OutputCollector output,
+                    Reporter reporter)
+			throws IOException {                        
         ARCReader reader = null;
         try {
             int records = 0;
             int errors = 0;
             
             System.out.println("ARCNAME: " + value.toString());
+            reporter.setStatus("ARCNAME: " + value.toString());
             reader = ARCReaderFactory.get(value.toString());
 
 
             for (Iterator<ArchiveRecord> ii = reader.iterator(); ii.hasNext();) {
                     ARCRecord record = (ARCRecord)ii.next();
                     if(record.getMetaData().getMimetype().contains("html"))
-                        parseImagesFromHtmlRecord(record, context);
+                        parseImagesFromHtmlRecord(record, value, output);
                     ++records;
                     if (record.hasErrors()) {
                         errors += record.getErrors().size();
@@ -265,8 +314,14 @@ public class IndexImages
     {
     Configuration conf = new Configuration();
     conf.set("collection", args[2]);
+    conf.setInt("mapreduce.input.lineinputformat.linespermap", 1);
+    conf.set("mapred.textoutputformat.separator", "");
+    conf.set("mapreduce.textoutputformat.separator", "");
 
-	Job job = new Job(conf, "Mapper_Only_Job");
+
+
+
+	JobConf job = new JobConf(conf, Map.class );
 
 	job.setJarByClass(IndexImages.class);
 	job.setMapperClass(Map.class);
@@ -275,19 +330,25 @@ public class IndexImages
 	job.setJobName(args[2]+"_Images");
 	
 
-    job.setInputFormatClass(NLineInputFormat.class);
-    NLineInputFormat.addInputPath(job, new Path(args[0]));
-    job.getConfiguration().setInt("mapreduce.input.lineinputformat.linespermap", 1);
+    /*job.setInputFormatClass(NLineInputFormat.class);
+    NLineInputFormat.addInputPath(job, new Path(args[0]));*/
 
-	job.setOutputFormatClass(TextOutputFormat.class);
+    job.setInputPath(new Path(args[0]));
+    job.setInputFormat(TextInputFormat.class);
+
+
+
+
+	job.setOutputFormat(TextOutputFormat.class);
 		
 	// Sets reducer tasks to 0
 	job.setNumReduceTasks(0);
 
-	FileOutputFormat.setOutputPath(job, new Path(args[1]));
+	job.setOutputPath(new Path(args[1]));
+    JobClient.runJob(job);
+    System.exit(1);
+	//boolean result = job.waitForCompletion(true);
 
-	boolean result = job.waitForCompletion(true);
-
-	System.exit(result ? 0 : 1);
+	//System.exit(result ? 0 : 1);
     }
 }
